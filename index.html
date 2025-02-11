@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convertir Word a PDF</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            width: 100%;
+            max-width: 600px;
+            padding: 20px;
+            text-align: center;
+        }
+        .instruction {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .hidden {
+            display: none;
+        }
+        .file-input-container {
+            margin-bottom: 20px;
+        }
+        .file-input-container input[type="file"] {
+            display: none;
+        }
+        .file-input-container label {
+            display: inline-block;
+            padding: 15px 30px;
+            background-color: #0078d4; /* Azul de Word */
+            color: white;
+            font-size: 18px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .file-input-container label:hover {
+            background-color: #005bb5;
+        }
+        .action-button {
+            padding: 15px 30px;
+            font-size: 18px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            margin: 5px;
+            transition: background-color 0.3s ease, transform 0.3s ease;
+        }
+        .action-button-word {
+            background-color: #0078d4; /* Azul de Word */
+            color: white;
+        }
+        .action-button-word:hover {
+            background-color: #005bb5;
+            transform: scale(1.05);
+        }
+        .action-button-pdf {
+            background-color: #e74c3c; /* Rojo de PDF */
+            color: white;
+        }
+        .action-button-pdf:hover {
+            background-color: #c0392b;
+            transform: scale(1.05);
+        }
+        .action-button-success {
+            background-color: #2ecc71; /* Verde */
+            color: white;
+        }
+        .action-button-success:hover {
+            background-color: #27ae60;
+            transform: scale(1.05);
+        }
+        .options {
+            margin-top: 20px;
+        }
+        .icon {
+            margin-right: 10px;
+        }
+        .status-message {
+            margin-top: 10px;
+            font-size: 16px;
+            color: #f39c12;
+        }
+        .back-button {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Paso 1: Subir el documento -->
+        <div id="step1">
+            <div class="instruction">Paso 1: Sube tu archivo de Word (.docx)</div>
+            <div class="file-input-container">
+                <label for="wordFile"><i class="fas fa-file-word icon"></i>Seleccionar archivo</label>
+                <input type="file" id="wordFile" accept=".docx">
+            </div>
+        </div>
+
+        <!-- Paso 2: Convertir el documento -->
+        <div id="step2" class="hidden">
+            <div class="instruction">Paso 2: Convierte tu archivo a PDF</div>
+            <button id="convertButton" class="action-button action-button-pdf" onclick="startConversion()">
+                <i class="fas fa-file-export icon"></i>Convertir a PDF
+            </button>
+            <p id="conversionStatus" class="status-message"></p>
+        </div>
+
+        <!-- Paso 3: Acciones finales -->
+        <div id="step3" class="hidden">
+            <div class="instruction">Paso 3: El archivo se ha convertido correctamente. ¿Qué deseas hacer?</div>
+            <div class="options">
+                <button class="action-button action-button-success" onclick="downloadPDF()">
+                    <i class="fas fa-download icon"></i>Descargar PDF
+                </button>
+                <button class="action-button action-button-success" onclick="viewPDF()">
+                    <i class="fas fa-eye icon"></i>Ver Documento
+                </button>
+                <button class="action-button action-button-success" onclick="printPDF()">
+                    <i class="fas fa-print icon"></i>Imprimir
+                </button>
+            </div>
+            <div class="back-button">
+                <button class="action-button action-button-word" onclick="resetToStep1()">
+                    <i class="fas fa-arrow-left icon"></i>Subir otro documento
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let pdfDocDefinition = null;
+
+        document.getElementById('wordFile').addEventListener('change', function () {
+            const fileInput = document.getElementById('wordFile');
+            const step1 = document.getElementById('step1');
+            const step2 = document.getElementById('step2');
+
+            if (fileInput.files.length) {
+                step1.classList.add('hidden'); // Ocultar paso 1
+                step2.classList.remove('hidden'); // Mostrar paso 2
+            }
+        });
+
+        function startConversion() {
+            const fileInput = document.getElementById('wordFile');
+            const step2 = document.getElementById('step2');
+            const step3 = document.getElementById('step3');
+            const conversionStatus = document.getElementById('conversionStatus');
+
+            if (!fileInput.files.length) {
+                alert('Por favor, selecciona un archivo de Word (.docx).');
+                return;
+            }
+
+            conversionStatus.textContent = 'Convirtiendo...';
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function (e) {
+                try {
+                    const arrayBuffer = e.target.result;
+
+                    // Usar Mammoth.js para extraer el contenido del archivo .docx
+                    mammoth.extractRawText({ arrayBuffer: arrayBuffer })
+                        .then(function (result) {
+                            const textContent = result.value; // Contenido del archivo
+
+                            // Crear definición del PDF
+                            pdfDocDefinition = {
+                                content: [{ text: textContent, fontSize: 12 }]
+                            };
+
+                            // Mostrar paso 3
+                            step2.classList.add('hidden');
+                            step3.classList.remove('hidden');
+                        })
+                        .catch(function (error) {
+                            console.error(error);
+                            conversionStatus.textContent = 'Error al procesar el archivo. Asegúrate de que sea un archivo .docx válido.';
+                        });
+                } catch (error) {
+                    console.error(error);
+                    conversionStatus.textContent = 'Error al leer el archivo.';
+                }
+            };
+
+            reader.onerror = function () {
+                conversionStatus.textContent = 'Error al leer el archivo.';
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        function resetToStep1() {
+            // Reiniciar a la paso 1
+            document.getElementById('step1').classList.remove('hidden');
+            document.getElementById('step2').classList.add('hidden');
+            document.getElementById('step3').classList.add('hidden');
+            document.getElementById('conversionStatus').textContent = '';
+            document.getElementById('wordFile').value = ''; // Limpiar el input de archivos
+            pdfDocDefinition = null; // Limpiar el PDF generado
+        }
+
+        function downloadPDF() {
+            if (pdfDocDefinition) {
+                pdfMake.createPdf(pdfDocDefinition).download("documento_convertido.pdf");
+            } else {
+                alert("No hay un PDF disponible para descargar.");
+            }
+        }
+
+        function viewPDF() {
+            if (pdfDocDefinition) {
+                pdfMake.createPdf(pdfDocDefinition).open();
+            } else {
+                alert("No hay un PDF disponible para ver.");
+            }
+        }
+
+        function printPDF() {
+            if (pdfDocDefinition) {
+                pdfMake.createPdf(pdfDocDefinition).print();
+            } else {
+                alert("No hay un PDF disponible para imprimir.");
+            }
+        }
+    </script>
+</body>
+</html>
